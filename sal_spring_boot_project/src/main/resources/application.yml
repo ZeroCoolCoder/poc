@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/ORCLCDB
+    username: SAL
+    password: SAL
+    driver-class-name: oracle.jdbc.OracleDriver
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+sal:
+  fs:
+    root: ./sal-data
+  entitlements:
+    base-url: http://localhost:8089
+    check-path: /api/v1/check
