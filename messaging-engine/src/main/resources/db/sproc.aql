@@ -1,0 +1,88 @@
+CREATE OR REPLACE PROCEDURE sync_identity_sequences_to_max(p_dry_run IN VARCHAR2 DEFAULT 'N')
+AUTHID CURRENT_USER
+AS
+  -- p_dry_run: 'Y' = print only, 'N' = execute changes
+
+  CURSOR c_id IS
+    SELECT table_name, column_name, sequence_name
+    FROM   user_tab_identity_cols
+    ORDER  BY table_name, column_name;
+
+  v_max_val        NUMBER;
+  v_desired_next   NUMBER;
+  v_inc            NUMBER;
+  v_seq_max        NUMBER;
+  v_cycle_flag     VARCHAR2(1);
+
+  v_now_next       NUMBER;
+  v_delta          NUMBER;
+  v_dummy          NUMBER;
+
+  v_sql            VARCHAR2(4000);
+  v_dry            BOOLEAN := (UPPER(NVL(p_dry_run,'N')) = 'Y');
+
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('=== Sync identity sequences to MAX(col)+1 (dry_run='||NVL(p_dry_run,'N')||') ===');
+
+  FOR r IN c_id LOOP
+    -- 1) Get MAX(identity_col) from the table (quoted to handle mixed-case identifiers)
+    v_sql := 'SELECT NVL(MAX("'||r.column_name||'"),0) FROM "'||r.table_name||'"';
+    EXECUTE IMMEDIATE v_sql INTO v_max_val;
+
+    v_desired_next := v_max_val + 1;
+
+    -- 2) Read current sequence properties (increment, maxvalue, cycle)
+    SELECT increment_by, max_value, cycle_flag
+    INTO   v_inc, v_seq_max, v_cycle_flag
+    FROM   user_sequences
+    WHERE  sequence_name = r.sequence_name;
+
+    -- 3) Peek/advance by one to know where the sequence is (NEXTVAL is authoritative)
+    v_sql := 'SELECT '||r.sequence_name||'.NEXTVAL FROM dual';
+    EXECUTE IMMEDIATE v_sql INTO v_now_next;
+
+    -- If sequence already at/above desired, nothing to do (we've advanced by one already)
+    IF v_desired_next <= v_now_next THEN
+      DBMS_OUTPUT.PUT_LINE(
+        r.table_name||'.'||r.column_name||
+        ' -> seq '||r.sequence_name||
+        ' already >= desired. max='||v_max_val||
+        ' desired_next='||v_desired_next||
+        ' now_next='||v_now_next||
+        ' (no further action)'
+      );
+      CONTINUE;
+    END IF;
+
+    -- 4) Validate maxvalue if sequence is bounded and non-cycling
+    IF v_cycle_flag = 'N' AND v_seq_max IS NOT NULL AND v_desired_next > v_seq_max THEN
+      DBMS_OUTPUT.PUT_LINE(
+        'WARNING: '||r.table_name||'.'||r.column_name||
+        ' desired_next='||v_desired_next||
+        ' exceeds seq max_value='||v_seq_max||
+        ' for sequence '||r.sequence_name||' (skipping)'
+      );
+      CONTINUE;
+    END IF;
+
+    -- 5) Advance sequence forward to desired_next using increment trick
+    v_delta := v_desired_next - v_now_next;
+
+    DBMS_OUTPUT.PUT_LINE(
+      r.table_name||'.'||r.column_name||
+      ' -> advancing seq '||r.sequence_name||
+      ' by delta='||v_delta||
+      ' (max='||v_max_val||', desired_next='||v_desired_next||', now_next='||v_now_next||')'
+    );
+
+    IF NOT v_dry THEN
+      EXECUTE IMMEDIATE 'ALTER SEQUENCE '||r.sequence_name||' INCREMENT BY '||v_delta;
+      EXECUTE IMMEDIATE 'SELECT '||r.sequence_name||'.NEXTVAL FROM dual' INTO v_dummy; -- lands on desired_next
+      EXECUTE IMMEDIATE 'ALTER SEQUENCE '||r.sequence_name||' INCREMENT BY '||v_inc;  -- restore original increment
+    END IF;
+
+  END LOOP;
+
+  DBMS_OUTPUT.PUT_LINE('=== Done ===');
+END;
+/
