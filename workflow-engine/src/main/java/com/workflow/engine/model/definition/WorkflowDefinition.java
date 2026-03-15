@@ -45,6 +45,9 @@ public class WorkflowDefinition {
     @OneToMany(mappedBy = "workflowDefinition", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<TransitionDefinition> transitions = new HashSet<>();
 
+    @Column(name = "RULES_ENGINE_TYPE", length = 50)
+    private String rulesEngineType;
+
     @Column(name = "CREATED_AT", nullable = false)
     private LocalDateTime createdAt;
 
@@ -124,6 +127,14 @@ public class WorkflowDefinition {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getRulesEngineType() {
+        return rulesEngineType;
+    }
+
+    public void setRulesEngineType(String rulesEngineType) {
+        this.rulesEngineType = rulesEngineType;
     }
 
     public void addNode(NodeDefinition node) {

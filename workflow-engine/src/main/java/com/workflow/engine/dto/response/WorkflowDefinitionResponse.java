@@ -14,6 +14,7 @@ public class WorkflowDefinitionResponse {
     private DefinitionStatus status;
     private List<NodeDefinitionResponse> nodes;
     private List<TransitionDefinitionResponse> transitions;
+    private String rulesEngineType;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -71,6 +72,14 @@ public class WorkflowDefinitionResponse {
 
     public void setTransitions(List<TransitionDefinitionResponse> transitions) {
         this.transitions = transitions;
+    }
+
+    public String getRulesEngineType() {
+        return rulesEngineType;
+    }
+
+    public void setRulesEngineType(String rulesEngineType) {
+        this.rulesEngineType = rulesEngineType;
     }
 
     public LocalDateTime getCreatedAt() {

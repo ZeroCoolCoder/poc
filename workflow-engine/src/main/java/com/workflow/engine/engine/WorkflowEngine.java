@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workflow.engine.cache.WorkflowCacheService;
+import com.workflow.engine.engine.rules.RulesEngine;
+import com.workflow.engine.engine.rules.RulesEngineRegistry;
 import com.workflow.engine.exception.WorkflowException;
 import com.workflow.engine.model.definition.NodeDefinition;
 import com.workflow.engine.model.definition.NodeType;
@@ -42,6 +44,7 @@ public class WorkflowEngine {
 
     private final ActionHandlerRegistry handlerRegistry;
     private final TransitionEvaluator transitionEvaluator;
+    private final RulesEngineRegistry rulesEngineRegistry;
     private final WorkflowInstanceRepository instanceRepository;
     private final NodeExecutionRepository nodeExecutionRepository;
     private final TransitionDefinitionRepository transitionDefinitionRepository;
@@ -51,6 +54,7 @@ public class WorkflowEngine {
 
     public WorkflowEngine(ActionHandlerRegistry handlerRegistry,
                           TransitionEvaluator transitionEvaluator,
+                          RulesEngineRegistry rulesEngineRegistry,
                           WorkflowInstanceRepository instanceRepository,
                           NodeExecutionRepository nodeExecutionRepository,
                           TransitionDefinitionRepository transitionDefinitionRepository,
@@ -59,6 +63,7 @@ public class WorkflowEngine {
                           ObjectMapper objectMapper) {
         this.handlerRegistry = handlerRegistry;
         this.transitionEvaluator = transitionEvaluator;
+        this.rulesEngineRegistry = rulesEngineRegistry;
         this.instanceRepository = instanceRepository;
         this.nodeExecutionRepository = nodeExecutionRepository;
         this.transitionDefinitionRepository = transitionDefinitionRepository;
@@ -393,8 +398,9 @@ public class WorkflowEngine {
             return;
         }
 
+        RulesEngine rulesEngine = rulesEngineRegistry.getEngine(definition.getRulesEngineType());
         Optional<TransitionDefinition> matchedTransition =
-                transitionEvaluator.evaluateTransitions(transitions, context);
+                rulesEngine.evaluateTransitions(transitions, context);
 
         if (matchedTransition.isPresent()) {
             TransitionDefinition transition = matchedTransition.get();
