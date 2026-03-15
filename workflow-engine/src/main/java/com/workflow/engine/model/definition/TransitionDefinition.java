@@ -12,6 +12,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
+import java.util.Objects;
+
 @Entity
 @Table(name = "WF_TRANSITION_DEFINITION")
 public class TransitionDefinition {
@@ -98,5 +100,21 @@ public class TransitionDefinition {
 
     public void setWorkflowDefinition(WorkflowDefinition workflowDefinition) {
         this.workflowDefinition = workflowDefinition;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TransitionDefinition that = (TransitionDefinition) o;
+        return Objects.equals(sourceNodeKey, that.sourceNodeKey) &&
+               Objects.equals(targetNodeKey, that.targetNodeKey) &&
+               Objects.equals(workflowDefinition != null ? workflowDefinition.getId() : null,
+                              that.workflowDefinition != null ? that.workflowDefinition.getId() : null);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sourceNodeKey, targetNodeKey);
     }
 }

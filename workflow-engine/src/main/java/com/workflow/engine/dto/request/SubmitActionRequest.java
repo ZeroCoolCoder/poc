@@ -9,6 +9,8 @@ public class SubmitActionRequest {
     @NotNull(message = "Workflow instance ID is required")
     private Long workflowInstanceId;
 
+    private String nodeKey;
+
     private String action;
 
     private Map<String, Object> payload;
@@ -21,6 +23,14 @@ public class SubmitActionRequest {
 
     public void setWorkflowInstanceId(Long workflowInstanceId) {
         this.workflowInstanceId = workflowInstanceId;
+    }
+
+    public String getNodeKey() {
+        return nodeKey;
+    }
+
+    public void setNodeKey(String nodeKey) {
+        this.nodeKey = nodeKey;
     }
 
     public String getAction() {

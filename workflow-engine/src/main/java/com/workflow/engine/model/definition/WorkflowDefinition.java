@@ -14,8 +14,8 @@ import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "WF_DEFINITION")
@@ -40,10 +40,13 @@ public class WorkflowDefinition {
     private DefinitionStatus status;
 
     @OneToMany(mappedBy = "workflowDefinition", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<NodeDefinition> nodes = new ArrayList<>();
+    private Set<NodeDefinition> nodes = new HashSet<>();
 
     @OneToMany(mappedBy = "workflowDefinition", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<TransitionDefinition> transitions = new ArrayList<>();
+    private Set<TransitionDefinition> transitions = new HashSet<>();
+
+    @Column(name = "RULES_ENGINE_TYPE", length = 50)
+    private String rulesEngineType;
 
     @Column(name = "CREATED_AT", nullable = false)
     private LocalDateTime createdAt;
@@ -94,19 +97,19 @@ public class WorkflowDefinition {
         this.status = status;
     }
 
-    public List<NodeDefinition> getNodes() {
+    public Set<NodeDefinition> getNodes() {
         return nodes;
     }
 
-    public void setNodes(List<NodeDefinition> nodes) {
+    public void setNodes(Set<NodeDefinition> nodes) {
         this.nodes = nodes;
     }
 
-    public List<TransitionDefinition> getTransitions() {
+    public Set<TransitionDefinition> getTransitions() {
         return transitions;
     }
 
-    public void setTransitions(List<TransitionDefinition> transitions) {
+    public void setTransitions(Set<TransitionDefinition> transitions) {
         this.transitions = transitions;
     }
 
@@ -124,6 +127,14 @@ public class WorkflowDefinition {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getRulesEngineType() {
+        return rulesEngineType;
+    }
+
+    public void setRulesEngineType(String rulesEngineType) {
+        this.rulesEngineType = rulesEngineType;
     }
 
     public void addNode(NodeDefinition node) {

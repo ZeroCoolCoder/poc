@@ -47,6 +47,7 @@ public class WorkflowDefinitionService {
         definition.setDescription(request.getDescription());
         definition.setVersion(nextVersion);
         definition.setStatus(DefinitionStatus.DRAFT);
+        definition.setRulesEngineType(request.getRulesEngineType() != null ? request.getRulesEngineType() : "spel");
         definition.setCreatedAt(LocalDateTime.now());
         definition.setUpdatedAt(LocalDateTime.now());
 
@@ -173,6 +174,7 @@ public class WorkflowDefinitionService {
         response.setDescription(definition.getDescription());
         response.setVersion(definition.getVersion());
         response.setStatus(definition.getStatus());
+        response.setRulesEngineType(definition.getRulesEngineType());
         response.setCreatedAt(definition.getCreatedAt());
         response.setUpdatedAt(definition.getUpdatedAt());
 

@@ -20,6 +20,8 @@ public class CreateWorkflowDefinitionRequest {
     @Valid
     private List<TransitionDefinitionRequest> transitions;
 
+    private String rulesEngineType;
+
     public String getName() {
         return name;
     }
@@ -50,5 +52,13 @@ public class CreateWorkflowDefinitionRequest {
 
     public void setTransitions(List<TransitionDefinitionRequest> transitions) {
         this.transitions = transitions;
+    }
+
+    public String getRulesEngineType() {
+        return rulesEngineType;
+    }
+
+    public void setRulesEngineType(String rulesEngineType) {
+        this.rulesEngineType = rulesEngineType;
     }
 }

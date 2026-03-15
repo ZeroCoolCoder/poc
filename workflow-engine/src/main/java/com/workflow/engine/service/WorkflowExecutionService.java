@@ -70,7 +70,7 @@ public class WorkflowExecutionService {
         WorkflowInstance instance = findInstance(request.getWorkflowInstanceId());
         WorkflowDefinition definition = definitionService.getDefinitionEntity(instance.getWorkflowDefinitionId());
 
-        instance = workflowEngine.submitExternalAction(instance, definition, request.getAction(), request.getPayload());
+        instance = workflowEngine.submitExternalAction(instance, definition, request.getNodeKey(), request.getAction(), request.getPayload());
         return toResponse(instance);
     }
 

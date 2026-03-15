@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workflow.engine.cache.WorkflowCacheService;
+import com.workflow.engine.engine.rules.RulesEngine;
+import com.workflow.engine.engine.rules.RulesEngineRegistry;
 import com.workflow.engine.exception.WorkflowException;
 import com.workflow.engine.model.definition.NodeDefinition;
 import com.workflow.engine.model.definition.NodeType;
@@ -42,6 +44,7 @@ public class WorkflowEngine {
 
     private final ActionHandlerRegistry handlerRegistry;
     private final TransitionEvaluator transitionEvaluator;
+    private final RulesEngineRegistry rulesEngineRegistry;
     private final WorkflowInstanceRepository instanceRepository;
     private final NodeExecutionRepository nodeExecutionRepository;
     private final TransitionDefinitionRepository transitionDefinitionRepository;
@@ -51,6 +54,7 @@ public class WorkflowEngine {
 
     public WorkflowEngine(ActionHandlerRegistry handlerRegistry,
                           TransitionEvaluator transitionEvaluator,
+                          RulesEngineRegistry rulesEngineRegistry,
                           WorkflowInstanceRepository instanceRepository,
                           NodeExecutionRepository nodeExecutionRepository,
                           TransitionDefinitionRepository transitionDefinitionRepository,
@@ -59,6 +63,7 @@ public class WorkflowEngine {
                           ObjectMapper objectMapper) {
         this.handlerRegistry = handlerRegistry;
         this.transitionEvaluator = transitionEvaluator;
+        this.rulesEngineRegistry = rulesEngineRegistry;
         this.instanceRepository = instanceRepository;
         this.nodeExecutionRepository = nodeExecutionRepository;
         this.transitionDefinitionRepository = transitionDefinitionRepository;
@@ -104,29 +109,44 @@ public class WorkflowEngine {
 
     /**
      * Resumes a workflow instance that is waiting for external input.
+     * If nodeKey is provided, targets that specific waiting node (for parallel FORK branches).
+     * If nodeKey is null, falls back to the instance's currentNodeKey.
      */
     @Transactional
     public WorkflowInstance submitExternalAction(WorkflowInstance instance,
                                                   WorkflowDefinition definition,
+                                                  String nodeKey,
                                                   String action,
                                                   Map<String, Object> payload) {
         if (instance.getStatus() != WorkflowStatus.RUNNING) {
             throw new WorkflowException("Workflow instance " + instance.getId() + " is not in RUNNING state");
         }
 
-        String currentNodeKey = instance.getCurrentNodeKey();
-        NodeDefinition currentNode = findNodeByKey(definition, currentNodeKey);
+        String targetNodeKey = (nodeKey != null && !nodeKey.isBlank()) ? nodeKey : instance.getCurrentNodeKey();
+        NodeDefinition targetNode = findNodeByKey(definition, targetNodeKey);
 
-        if (currentNode.getNodeType() != NodeType.WAIT_FOR_INPUT) {
-            throw new WorkflowException("Current node '" + currentNodeKey + "' is not a WAIT_FOR_INPUT node");
+        if (targetNode.getNodeType() != NodeType.WAIT_FOR_INPUT) {
+            throw new WorkflowException("Node '" + targetNodeKey + "' is not a WAIT_FOR_INPUT node");
+        }
+
+        // Verify the node is actually waiting for input
+        List<NodeExecution> waitingExecutions = nodeExecutionRepository
+                .findByWorkflowInstanceIdAndStatus(instance.getId(), NodeExecutionStatus.WAITING_FOR_INPUT);
+        boolean isWaiting = waitingExecutions.stream()
+                .anyMatch(exec -> exec.getNodeKey().equals(targetNodeKey));
+        if (!isWaiting) {
+            throw new WorkflowException("Node '" + targetNodeKey + "' is not currently waiting for input");
         }
 
         Map<String, Object> context = deserializeContext(instance.getContextData());
         if (action != null) {
             context.put("_action", action);
+            context.put("_action_" + targetNodeKey, action);
         }
         if (payload != null) {
             context.putAll(payload);
+            // Store per-node payload for parallel branches
+            context.put("_payload_" + targetNodeKey, payload);
         }
 
         instance.setContextData(serializeContext(context));
@@ -134,10 +154,8 @@ public class WorkflowEngine {
         instanceRepository.save(instance);
 
         // Complete the waiting node execution
-        List<NodeExecution> waitingExecutions = nodeExecutionRepository
-                .findByWorkflowInstanceIdAndStatus(instance.getId(), NodeExecutionStatus.WAITING_FOR_INPUT);
         for (NodeExecution exec : waitingExecutions) {
-            if (exec.getNodeKey().equals(currentNodeKey)) {
+            if (exec.getNodeKey().equals(targetNodeKey)) {
                 exec.setStatus(NodeExecutionStatus.COMPLETED);
                 exec.setOutputData(serializeContext(payload != null ? payload : new HashMap<>()));
                 exec.setCompletedAt(LocalDateTime.now());
@@ -145,7 +163,7 @@ public class WorkflowEngine {
             }
         }
 
-        advanceToNextNode(instance, definition, currentNode, context);
+        advanceToNextNode(instance, definition, targetNode, context);
 
         return instanceRepository.findById(instance.getId()).orElse(instance);
     }
@@ -167,6 +185,12 @@ public class WorkflowEngine {
                 node.getNodeKey(), node.getNodeType(), instance.getId());
 
         Map<String, Object> context = deserializeContext(instance.getContextData());
+
+        // JOIN manages its own execution records (reuses existing PENDING ones)
+        if (node.getNodeType() == NodeType.JOIN) {
+            executeJoinNode(instance, definition, node, context);
+            return;
+        }
 
         NodeExecution execution = createNodeExecution(instance, node);
 
@@ -197,15 +221,14 @@ public class WorkflowEngine {
                 executeForkNode(instance, definition, node, execution, context);
                 break;
 
-            case JOIN:
-                executeJoinNode(instance, definition, node, execution, context);
-                break;
-
             case END:
                 execution.setStatus(NodeExecutionStatus.COMPLETED);
                 execution.setCompletedAt(LocalDateTime.now());
                 nodeExecutionRepository.save(execution);
                 completeWorkflow(instance);
+                break;
+
+            default:
                 break;
         }
     }
@@ -309,8 +332,7 @@ public class WorkflowEngine {
     }
 
     private void executeJoinNode(WorkflowInstance instance, WorkflowDefinition definition,
-                                  NodeDefinition node, NodeExecution execution,
-                                  Map<String, Object> context) {
+                                  NodeDefinition node, Map<String, Object> context) {
         // Check if all incoming paths have completed
         List<TransitionDefinition> allTransitions = transitionDefinitionRepository
                 .findByWorkflowDefinitionId(definition.getId());
@@ -332,15 +354,35 @@ public class WorkflowEngine {
             }
         }
 
+        // Look for an existing JOIN execution (another branch may have already created one)
+        List<NodeExecution> existingJoinExecs = nodeExecutionRepository
+                .findByWorkflowInstanceIdAndNodeKey(instance.getId(), node.getNodeKey());
+        NodeExecution execution = existingJoinExecs.stream()
+                .filter(e -> e.getStatus() == NodeExecutionStatus.PENDING)
+                .findFirst()
+                .orElse(null);
+
         if (allCompleted) {
+            if (execution == null) {
+                execution = createNodeExecution(instance, node);
+            }
             execution.setStatus(NodeExecutionStatus.COMPLETED);
             execution.setCompletedAt(LocalDateTime.now());
             nodeExecutionRepository.save(execution);
+
+            instance.setCurrentNodeKey(node.getNodeKey());
+            instance.setUpdatedAt(LocalDateTime.now());
+            instanceRepository.save(instance);
+
             advanceToNextNode(instance, definition, node, context);
         } else {
-            execution.setStatus(NodeExecutionStatus.PENDING);
-            nodeExecutionRepository.save(execution);
-            log.debug("Join node '{}' waiting for incoming paths to complete", node.getNodeKey());
+            if (execution == null) {
+                execution = createNodeExecution(instance, node);
+                execution.setStatus(NodeExecutionStatus.PENDING);
+                nodeExecutionRepository.save(execution);
+            }
+            log.debug("Join node '{}' waiting for incoming paths to complete ({} incoming)",
+                    node.getNodeKey(), incomingNodeKeys.size());
         }
     }
 
@@ -356,8 +398,9 @@ public class WorkflowEngine {
             return;
         }
 
+        RulesEngine rulesEngine = rulesEngineRegistry.getEngine(definition.getRulesEngineType());
         Optional<TransitionDefinition> matchedTransition =
-                transitionEvaluator.evaluateTransitions(transitions, context);
+                rulesEngine.evaluateTransitions(transitions, context);
 
         if (matchedTransition.isPresent()) {
             TransitionDefinition transition = matchedTransition.get();
