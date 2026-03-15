@@ -49,6 +49,7 @@ export function InstanceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showActionDialog, setShowActionDialog] = useState(false);
+  const [actionNodeKey, setActionNodeKey] = useState<string | undefined>(undefined);
   const [actionName, setActionName] = useState('');
   const [actionPayload, setActionPayload] = useState('');
   const [submittedBy, setSubmittedBy] = useState('');
@@ -95,6 +96,11 @@ export function InstanceDetailPage() {
     }
   };
 
+  const openActionDialog = (nodeKey?: string) => {
+    setActionNodeKey(nodeKey);
+    setShowActionDialog(true);
+  };
+
   const handleSubmitAction = async () => {
     setSubmitting(true);
     setError(null);
@@ -105,11 +111,13 @@ export function InstanceDetailPage() {
       }
       await workflowApi.submitAction({
         workflowInstanceId: instanceId,
+        nodeKey: actionNodeKey,
         action: actionName || undefined,
         payload,
         submittedBy: submittedBy || undefined,
       });
       setShowActionDialog(false);
+      setActionNodeKey(undefined);
       setActionName('');
       setActionPayload('');
       setSubmittedBy('');
@@ -120,6 +128,10 @@ export function InstanceDetailPage() {
       setSubmitting(false);
     }
   };
+
+  const waitingNodes = executions.filter(
+    (exec) => exec.status === 'WAITING_FOR_INPUT'
+  );
 
   const formatJson = (json: string | undefined) => {
     if (!json) return '-';
@@ -169,7 +181,7 @@ export function InstanceDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowActionDialog(true)}
+                onClick={() => openActionDialog()}
                 className="gap-1"
               >
                 <Send className="h-3.5 w-3.5" />
@@ -253,6 +265,32 @@ export function InstanceDetailPage() {
         </Card>
       </div>
 
+      {waitingNodes.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-800">Pending Approvals</CardTitle>
+            <CardDescription className="text-amber-600">
+              {waitingNodes.length} node{waitingNodes.length !== 1 ? 's' : ''} waiting for input
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {waitingNodes.map((exec) => (
+                <Button
+                  key={exec.id}
+                  variant="outline"
+                  className="border-amber-300 bg-white hover:bg-amber-100 gap-2"
+                  onClick={() => openActionDialog(exec.nodeKey)}
+                >
+                  <Send className="h-4 w-4 text-amber-600" />
+                  <span className="font-medium">{exec.nodeKey}</span>
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Context Data</CardTitle>
@@ -319,7 +357,14 @@ export function InstanceDetailPage() {
       <Dialog open={showActionDialog} onOpenChange={setShowActionDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Submit External Action</DialogTitle>
+            <DialogTitle>
+              Submit External Action
+              {actionNodeKey && (
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  (node: {actionNodeKey})
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>

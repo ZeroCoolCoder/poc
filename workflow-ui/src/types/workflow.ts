@@ -105,6 +105,7 @@ export interface StartWorkflowRequest {
 
 export interface SubmitActionRequest {
   workflowInstanceId: number;
+  nodeKey?: string;
   action?: string;
   payload?: Record<string, unknown>;
   submittedBy?: string;
