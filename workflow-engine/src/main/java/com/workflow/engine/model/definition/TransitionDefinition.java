@@ -1,47 +1,16 @@
 package com.workflow.engine.model.definition;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.SequenceGenerator;
-import jakarta.persistence.Table;
-
 import java.util.Objects;
 
-@Entity
-@Table(name = "WF_TRANSITION_DEFINITION")
 public class TransitionDefinition {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "wf_trans_def_seq")
-    @SequenceGenerator(name = "wf_trans_def_seq", sequenceName = "WF_TRANS_DEF_SEQ", allocationSize = 1)
     private Long id;
-
-    @Column(name = "NAME", length = 255)
     private String name;
-
-    @Column(name = "SOURCE_NODE_KEY", nullable = false, length = 100)
     private String sourceNodeKey;
-
-    @Column(name = "TARGET_NODE_KEY", nullable = false, length = 100)
     private String targetNodeKey;
-
-    @Column(name = "CONDITION_EXPRESSION", length = 2000)
     private String conditionExpression;
-
-    @Column(name = "PRIORITY")
     private Integer priority;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "WORKFLOW_DEFINITION_ID", nullable = false)
-    @JsonIgnore
-    private WorkflowDefinition workflowDefinition;
+    private Long workflowDefinitionId;
 
     public TransitionDefinition() {
     }
@@ -94,12 +63,12 @@ public class TransitionDefinition {
         this.priority = priority;
     }
 
-    public WorkflowDefinition getWorkflowDefinition() {
-        return workflowDefinition;
+    public Long getWorkflowDefinitionId() {
+        return workflowDefinitionId;
     }
 
-    public void setWorkflowDefinition(WorkflowDefinition workflowDefinition) {
-        this.workflowDefinition = workflowDefinition;
+    public void setWorkflowDefinitionId(Long workflowDefinitionId) {
+        this.workflowDefinitionId = workflowDefinitionId;
     }
 
     @Override
@@ -109,8 +78,7 @@ public class TransitionDefinition {
         TransitionDefinition that = (TransitionDefinition) o;
         return Objects.equals(sourceNodeKey, that.sourceNodeKey) &&
                Objects.equals(targetNodeKey, that.targetNodeKey) &&
-               Objects.equals(workflowDefinition != null ? workflowDefinition.getId() : null,
-                              that.workflowDefinition != null ? that.workflowDefinition.getId() : null);
+               Objects.equals(workflowDefinitionId, that.workflowDefinitionId);
     }
 
     @Override
