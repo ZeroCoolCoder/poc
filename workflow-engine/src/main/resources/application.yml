@@ -14,19 +14,10 @@ spring:
       idle-timeout: 300000
       connection-timeout: 30000
 
-  # JPA / Hibernate Configuration
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.OracleDialect
-        format_sql: true
-        jdbc:
-          batch_size: 25
-        order_inserts: true
-        order_updates: true
-    show-sql: false
+  # JDBC schema initialization (disabled for prod - use Oracle DDL scripts)
+  sql:
+    init:
+      mode: never
 
   # Redis Configuration
   data:
@@ -47,7 +38,7 @@ server:
 logging:
   level:
     com.workflow.engine: DEBUG
-    org.hibernate.SQL: WARN
+    org.springframework.jdbc: WARN
 
 ---
 # Development profile: uses H2 in-memory DB and embedded Redis
@@ -71,12 +62,9 @@ spring:
     password:
     driver-class-name: org.h2.Driver
 
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+  sql:
+    init:
+      mode: always
 
   h2:
     console:
@@ -96,9 +84,6 @@ spring:
     password:
     driver-class-name: org.h2.Driver
 
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+  sql:
+    init:
+      mode: always
