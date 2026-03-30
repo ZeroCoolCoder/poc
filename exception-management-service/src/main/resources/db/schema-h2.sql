@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS ix_exc_active ON exception_definition (is_active);
 CREATE INDEX IF NOT EXISTS ix_exc_lst_mod_ts ON exception_definition (lst_mod_ts);
 
 CREATE TABLE IF NOT EXISTS exception_definition_hist (
-    hist_id                 BIGINT           AUTO_INCREMENT NOT NULL,
+    hist_id                 BIGINT           GENERATED ALWAYS AS IDENTITY NOT NULL,
     hist_ts                 TIMESTAMP        DEFAULT CURRENT_TIMESTAMP NOT NULL,
     hist_action             VARCHAR(10)      NOT NULL,
     hist_user               VARCHAR(255),
